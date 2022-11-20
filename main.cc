@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <string.h>
+#include <sys/time.h>
 
 using namespace std;
 
@@ -15,6 +16,7 @@ void write_out_table_2D(int nr_of_rows, int nr_of_columns, int **tab)
         cout << endl;
     }
 }
+
 void write_our_table_1D(int n, int *tab)
 {
     int i;
@@ -22,14 +24,39 @@ void write_our_table_1D(int n, int *tab)
         cout<< tab[i] << endl;
 }
 
-main(){
+bool can_I(int nr_of_jobs, int nr_of_machines, int *tasks, int **table, int machine, int time, int i)
+{
+    int j;
+    for(j = 0; j < nr_of_jobs; j++)
+    {
+        if(tasks[j]<nr_of_machines)
+        {
+            int machine_compare = table[j][tasks[j]*2];
+            int time_compare = table[j][tasks[j]*2+1];
+            if(machine == machine_compare && i!=j && time > time_compare)
+            {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+main()
+{
     fstream data;
     data.open("przyklad.txt", fstream::in);
     if(data.is_open()){
-        int nr_of_jobs, nr_of_machines;
-        data >> nr_of_jobs >> nr_of_machines;
+        int max_jobs, nr_of_jobs, nr_of_machines;
+        data >> max_jobs >> nr_of_machines;
+        cout << "Insert number of jobs you wanna do. ";
+        do
+        {
+            cout << "Max is " << max_jobs << endl;
+            cin >> nr_of_jobs;
+        } while (nr_of_jobs > max_jobs);
+        
         int i, j;
-
         //initialization of dynamic array (containing our data)
         int **table = new int*[nr_of_jobs];
         for(i = 0; i < nr_of_jobs; i++)
@@ -37,8 +64,8 @@ main(){
         for(i = 0; i < nr_of_jobs; i++)
             for(j = 0; j < 2*nr_of_machines; j++)
                 data >> table[i][j];
-        cout<<"DANE:"<<endl;
-        write_out_table_2D(nr_of_jobs, 2*nr_of_machines, table);
+        //cout<<"DANE:"<<endl;
+        //write_out_table_2D(nr_of_jobs, 2*nr_of_machines, table);
 
         //initialization of dynamic array (containing our solution)
         int **solution = new int*[nr_of_jobs];
@@ -65,8 +92,12 @@ main(){
         for(i = 0; i < nr_of_machines; i++)
             times[i] = 0;
 
+        //start measuring time
+        struct timeval begin, end;
+        gettimeofday(&begin, 0);
+
         //greedy
-        int tasks_done = 0, machine, machine_compare, time, time_compare;
+        int tasks_done = 0, machine, time;
         bool can_I_do_it;
 
         //first loop
@@ -89,74 +120,58 @@ main(){
         }
         for(i = 0; i < nr_of_jobs; i++)
                 agg[i] = tasks[i];
-        cout<<endl<<"ROZWIAZANIE:"<<endl;
-        write_out_table_2D(nr_of_jobs, nr_of_machines, solution);
-        cout<<endl<<"KTORY TASK ROZPATRUJEMY:"<<endl;
-        write_our_table_1D(nr_of_jobs, tasks);
-        cout<<endl<<"JAK DLUGO MASZYNY BEDA ZAJETE:"<<endl;
-        write_our_table_1D(nr_of_machines, times);
-        cout<<endl<<"TASKS DONE ALL: "<<tasks_done<<endl;
 
-        int previous_time, previous_time_all, machine_time;
+        int previous_time, previous_time_all;
 
         //next loops
-        while(tasks_done < 62)
+        while(tasks_done < nr_of_jobs*nr_of_machines)
         {
             for(i = 0; i < nr_of_jobs; i++)
             {
-                if(tasks[i]==9) break;
                 machine = table[i][tasks[i]*2];
                 time = table[i][tasks[i]*2+1];
-                can_I_do_it = 1;
-                for(j = 0; j < nr_of_jobs; j++)
+                if(tasks[i]<nr_of_machines && can_I(nr_of_jobs, nr_of_machines, tasks, table, machine, time, i))
                 {
-                    machine_compare = table[j][tasks[j]*2];
-                    time_compare = table[j][tasks[j]*2+1];
-                    if((machine == machine_compare && i!=j && time > time_compare) || tasks[j]==9)
+                    if(tasks[i]>0)
                     {
-                        can_I_do_it = 0;
-                        break;
-                    }
-                }
-                if(can_I_do_it)
-                    {
-                        if(tasks[i]>0)
+                        //cout<<"machine time "<<machine_time<<endl;
+                        previous_time = table[i][tasks[i]*2-1];
+                        //cout<<"previous time "<<previous_time<<endl;
+                        previous_time_all = solution[i][tasks[i]-1];
+                        //cout<<"previous in solution "<<previous_time_all<<endl;
+                        if(previous_time + previous_time_all > times[machine])
                         {
-                            cout<<endl<<"Job nr "<<i<<" "<<machine<<" "<<time<<endl;
-                            machine_time = times[machine];
-                            cout<<"machine time "<<machine_time<<endl;
-                            previous_time = table[i][tasks[i]*2-1];
-                            cout<<"previous time "<<previous_time<<endl;
-                            previous_time_all = solution[i][tasks[i]-1];
-                            cout<<"previous in solution "<<previous_time_all<<endl;
-                            if(previous_time + previous_time_all > times[machine])
-                            {
-                                solution[i][tasks[i]] = previous_time_all + previous_time;
-                                cout<<endl<< "wartosc przypisana (1) = "<< previous_time_all + previous_time<<endl;
-                            }
-                            else
-                            {
-                                solution[i][tasks[i]] = times[machine];
-                                cout<<endl<< "wartosc przypisana (2) = "<< times[machine] <<endl;
-                            }
-                        }    
-                        else 
+                            solution[i][tasks[i]] = previous_time_all + previous_time;
+                            //cout<<endl<< "wartosc przypisana (1) = "<< previous_time_all + previous_time<<endl;
+                        }
+                        else
+                        {
                             solution[i][tasks[i]] = times[machine];
-                        times[machine] = solution[i][tasks[i]]+ time;
-                        agg[i]++;
-                        tasks_done++;
-                    }
+                            //cout<<endl<< "wartosc przypisana (2) = "<< times[machine] <<endl;
+                        }
+                    }    
+                    else 
+                    solution[i][tasks[i]] = times[machine];
+                    times[machine] = solution[i][tasks[i]]+ time;
+                    agg[i]++;
+                    tasks_done++;
+                }                    
             }
             for(i = 0; i < nr_of_jobs; i++)
                 tasks[i] = agg[i];
-            cout<<endl<<"ROZWIAZANIE:"<<endl;
-            write_out_table_2D(nr_of_jobs, nr_of_machines, solution);
-            cout<<endl<<"KTORY TASK ROZPATRUJEMY:"<<endl;
-            write_our_table_1D(nr_of_jobs, tasks);
-            cout<<endl<<"JAK DLUGO MASZYNY BEDA ZAJETE:"<<endl;
-            write_our_table_1D(nr_of_machines, times);
-            cout<<endl<<"TASKS DONE ALL: "<<tasks_done<<endl;
         }
+        int max_time=0;
+        for(i = 0; i < nr_of_machines; i++)
+            if(max_time<times[i]) max_time = times[i];
+        cout<<max_time<<endl;
+        write_out_table_2D(nr_of_jobs, nr_of_machines, solution);
+
+        //stop measuring time and calculate elapsed time
+        gettimeofday(&end, 0);
+        long seconds = end.tv_sec - begin.tv_sec;
+        long microseconds = end.tv_usec - begin.tv_usec;
+        double elapsed = seconds + microseconds *1e-6;
+        printf("Time measured: %.3f seconds. \n", elapsed);
     }
     else
         cout << "file is not good" << endl;
